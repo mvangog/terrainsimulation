@@ -1,0 +1,30 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+struct Point
+{
+    int x;
+    int y;
+    float value;
+};
+
+int offsetX;
+int offsetY;
+
+RWStructuredBuffer<Point> points;
+
+
+[numthreads(256,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    Point thispoint = points[id.x];
+    float valueX = 0.25 +(sin((float)((thispoint.x + offsetX)/45.0)) * 0.25);
+    float valueY = 0.25 + (sin((float)((thispoint.y + offsetY) / 45.0)) * 0.25);
+    thispoint.value = valueX + valueY;
+    points[id.x] = thispoint;
+    // TODO: insert actual code here!
+
+    
+}
