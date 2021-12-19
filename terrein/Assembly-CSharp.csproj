@@ -53,15 +53,8 @@
     <UnityVersion>2020.3.24f1</UnityVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Assets\NewBehaviourScript.cs" />
-    <Compile Include="Assets\cstest.cs" />
     <Compile Include="Assets\Watersimulation\TerrainPoint.cs" />
     <Compile Include="Assets\Watersimulation\Water.cs" />
-    <Compile Include="Assets\createWaterTexture.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Assets\NewComputeShader.compute" />
-    <None Include="Assets\sinwaveComputeShader.compute" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">

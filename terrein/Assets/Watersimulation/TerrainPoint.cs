@@ -1,13 +1,16 @@
-﻿public class TerrainPoint
+﻿using UnityEngine;
+
+public class TerrainPoint
 {
     public int x;
     public int y;
     public float terrainElevation;
     public float waterElevation;
-    public bool hasSurfaceWater;
+    public Vector2 waterSpeed;
+
     public TerrainPoint()
     {
-        hasSurfaceWater = false;
+        waterSpeed = Vector2.zero;
     }
 
 }

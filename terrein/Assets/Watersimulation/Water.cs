@@ -107,7 +107,7 @@ public class Water : MonoBehaviour
         waterTexture.Apply();
     }
 
-    private void MoveWater()
+    private void MoveWaterOld()
     {
         // find all the points with water at the start of the iteration and order them from low to high;
         TerrainPoint[] waterPoints = terrainPoints.Where(x => x.waterElevation > x.terrainElevation).OrderBy(x=>x.waterElevation).ToArray();
@@ -126,9 +126,88 @@ public class Water : MonoBehaviour
                 terrainPoints[currentTerrainIndex] = terrainPoint;
                 continue;
             }
-            ShareWater(terrainPoint, terrainPoints[lowestNeighbourIndex]);
+            ShareWaterOld(terrainPoint, terrainPoints[lowestNeighbourIndex]);
         }
 
+    }
+
+
+    private void MoveWater()
+    {
+        List<Vector2Int> directions = new List<Vector2Int>();
+        directions.Add(new Vector2Int(0, 1)); //up
+        directions.Add(new Vector2Int(1, 1)); //topright
+        directions.Add(new Vector2Int(1, 0)); //right
+        directions.Add(new Vector2Int(1, -1)); //bottomright
+        directions.Add(new Vector2Int(0, -1)); //bottom
+        directions.Add(new Vector2Int(-1, -1)); //bottomleft
+        directions.Add(new Vector2Int(-1, 0)); //left
+        directions.Add(new Vector2Int(-1, 1)); //topleft
+
+        // find all the points with water at the start of the iteration and order them from low to high;
+        TerrainPoint[] waterPoints = terrainPoints.Where(x => x.waterElevation > x.terrainElevation).OrderBy(x => x.waterElevation).ToArray();
+        waterPoints.Reverse();
+        foreach (TerrainPoint terrainPoint in waterPoints)
+        {
+            Vector2Int finalDirection = new Vector2Int();
+            float maxForce = float.MinValue;
+
+            float force;
+           
+            for (int i = 0; i < directions.Count; i++)
+            {
+                force = getForceInDirection(terrainPoint, directions[i]);
+                if (force > maxForce)
+                {
+                    maxForce = force;
+                    finalDirection = directions[i];
+                }
+            }
+            if (maxForce>0)
+            {
+                ExchangeWater(terrainPoint, finalDirection,maxForce);
+            }
+
+        }
+    }
+
+    private void ExchangeWater(TerrainPoint terrainPoint, Vector2Int direction, float Force)
+    {
+        float deltaTime = Time.deltaTime;
+
+        int pointX = terrainPoint.x;
+        int pointY = terrainPoint.y;
+        int terrainpointIndex = GetTerrainPointsIndex(pointX, pointY);
+
+        int otherTerrainPointIndex = GetTerrainPointsIndex(pointX - direction.x, pointY - direction.y);
+        if (otherTerrainPointIndex ==-1)
+        {
+            terrainPoint.waterElevation = terrainPoint.terrainElevation;
+            terrainPoints[terrainpointIndex] = terrainPoint;
+            return;
+        }
+
+        TerrainPoint otherTerrainPoint = terrainPoints[otherTerrainPointIndex];
+        float mass = 10 * (terrainPoint.waterElevation - terrainPoint.terrainElevation);
+        float acceleration = mass / Force;
+        Vector2 normalizedDirection = direction;
+        normalizedDirection.Normalize();
+        float speedInDirection = normalizedDirection.x * terrainPoint.waterSpeed.x + normalizedDirection.y * terrainPoint.waterSpeed.y;
+        float speed = speedInDirection + acceleration * deltaTime*10;
+        if (speed >1)
+        {
+            speed = 1;
+        }
+        float volume = (terrainPoint.waterElevation - terrainPoint.terrainElevation)*speed;
+
+        // update the speed of the other point
+        float otherTerrainpointVolume = otherTerrainPoint.waterElevation - otherTerrainPoint.terrainElevation;
+        Vector2 otherspeed = (((otherTerrainpointVolume) * otherTerrainPoint.waterSpeed) + (terrainPoint.waterSpeed * volume)) / (otherTerrainpointVolume + volume);
+        otherTerrainPoint.waterSpeed = otherspeed;
+        otherTerrainPoint.waterElevation += volume;
+        terrainPoint.waterElevation -= volume;
+        terrainPoints[terrainpointIndex] = terrainPoint;
+        terrainPoints[otherTerrainPointIndex] = otherTerrainPoint;
     }
 
     int GetLowestNeighbourIndex(TerrainPoint terrainPoint)
@@ -189,10 +268,27 @@ public class Water : MonoBehaviour
     }
     private int GetTerrainPointsIndex(int x, int y)
     {
+        if (x<0)
+        {
+            return -1;
+        }
+        if (y<0)
+        {
+            return -1;
+        }
+        if (x>terrainSize-1)
+        {
+            return -1;
+        }
+        if (y > terrainSize-1)
+        {
+            return -1;
+        }
+
         return (y * terrainSize) + x;
     }
 
-    private void ShareWater(TerrainPoint firstTerrainPoint, TerrainPoint secondTerrainPoint)
+    private void ShareWaterOld(TerrainPoint firstTerrainPoint, TerrainPoint secondTerrainPoint)
     {
 
         TerrainPoint lowestTerrain = firstTerrainPoint;
@@ -221,6 +317,76 @@ public class Water : MonoBehaviour
         terrainPoints[lowestTerrainIndex] = lowestTerrain;
         terrainPoints[highestTerrainIndex] = highestTerrain;
 
+    }
+
+    private float getForceInDirection( TerrainPoint terrainPoint, Vector2Int direction)
+    {
+
+        int pointX = terrainPoint.x;
+        int pointY = terrainPoint.y;
+        int terrainpointIndex = GetTerrainPointsIndex(pointX, pointY);
+
+        int firstTerrainPointIndex = GetTerrainPointsIndex(pointX - direction.x, pointY - direction.y);
+        
+        int thirdTerrainPointIndex = GetTerrainPointsIndex(pointX + direction.x, pointY + direction.y);
+        
+
+
+        TerrainPoint secondTerrainPoint = terrainPoint;
+        // calcute the force coming from the first point
+        float TotalForce = 0;
+        float heightDifference = 100;
+        if (firstTerrainPointIndex!=-1)
+        {
+            TerrainPoint firstTerrainPoint = terrainPoints[firstTerrainPointIndex];
+            TotalForce += getOutsideForce(firstTerrainPoint,direction);
+            // include the hydrostatic pressure at the border
+            TotalForce += 5 * (firstTerrainPoint.waterElevation - firstTerrainPoint.terrainElevation);
+        }
+        // calculate the resistance form the third point
+        if (thirdTerrainPointIndex != -1)
+        {
+            TerrainPoint thirdTerrainPoint = terrainPoints[thirdTerrainPointIndex];
+            TotalForce += getOutsideForce(thirdTerrainPoint, direction);
+            heightDifference = secondTerrainPoint.terrainElevation - thirdTerrainPoint.terrainElevation;
+            // include the hydrostatic pressure at the border
+            TotalForce -= 5 * (thirdTerrainPoint.waterElevation - thirdTerrainPoint.terrainElevation);
+        }
+        // calculate the forces ffrom the second point
+        TotalForce += getInsideForce(secondTerrainPoint, direction, heightDifference);
+        // include the hydrostatic pressure at the border
+        TotalForce += 5 * (secondTerrainPoint.waterElevation - secondTerrainPoint.terrainElevation);
+        return TotalForce;
+
+    }
+
+    private float getInsideForce(TerrainPoint terrainPoint, Vector2 direction, float heightDifference)
+    {
+        float TotalForce = 0;
+        Vector2 normalizedDirection = direction.normalized;
+        // add the force from the speed of the watercolumn
+        float waterColumnHeight = terrainPoint.waterElevation - terrainPoint.terrainElevation;
+        float speedInDirection = normalizedDirection.x * terrainPoint.waterSpeed.x + normalizedDirection.y * terrainPoint.waterSpeed.y;
+        TotalForce += 10 * waterColumnHeight * speedInDirection;
+        // add the force fromthe sloping of the terrain
+        float slopeFactor = Mathf.Sqrt((direction.magnitude * direction.magnitude) + (heightDifference* heightDifference));
+        TotalForce += slopeFactor * heightDifference / 10;
+
+        return TotalForce;
+    }
+
+    private float getOutsideForce(TerrainPoint terrainPoint, Vector2 direction)
+    {
+        Vector2 normalizedDirection = direction.normalized;
+        float TotalForce = 0;
+        // get the hydrostatic force from the watercolumn
+        float waterColumnHeight = terrainPoint.waterElevation - terrainPoint.terrainElevation;
+        TotalForce += 5 * waterColumnHeight;
+        // add the force from the speed of the watercolumn
+        float speedInDirection = normalizedDirection.x * terrainPoint.waterSpeed.x + normalizedDirection.y * terrainPoint.waterSpeed.y;
+        TotalForce += 10 * waterColumnHeight * speedInDirection;
+
+        return TotalForce;
     }
 
     public void NextIteration()
